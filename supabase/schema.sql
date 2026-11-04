@@ -470,6 +470,13 @@ revoke all on function punch_state() from public, anon;
 grant execute on function punch(punch_kind, float8, float8, float8, text) to authenticated;
 grant execute on function punch_state() to authenticated;
 
+-- Explicit table access for signed-in users (newer projects may not expose new tables
+-- automatically). Row level security above still decides which rows each login sees.
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on settings, holidays, teams, employees, staff, sites, allotments, punches, day_reviews to authenticated;
+grant select on v_day to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
 -- ============================================================
 -- Selfie storage (private bucket, folder per EMP code)
 -- ============================================================
