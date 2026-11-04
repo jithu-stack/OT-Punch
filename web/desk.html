@@ -3,38 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stemhub OT Desk</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<title>OT Punch · Desk</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="brand"><span class="tag">OT</span><h1>OT Desk</h1><span class="muted" id="me"></span></div>
-    <div class="check" id="dateBox" hidden><label for="workDate" class="muted">Working date</label><input type="date" id="workDate"></div>
-    <button class="btn sm" id="logoutBtn" hidden>Log out</button>
-  </header>
-
   <!-- LOGIN -->
-  <section id="loginView" class="card stack narrow" hidden>
-    <h2>Supervisor / HR login</h2>
-    <p class="lead">Your email must first be added to the staff list by the admin. First time: choose "Create account".</p>
-    <form id="loginForm" class="stack" novalidate>
-      <div class="field"><label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" required></div>
-      <div class="field"><label for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password" minlength="6" required></div>
-      <div class="toolbar" style="margin:0"><button class="btn primary" type="submit">Log in</button><button class="btn" type="button" id="signupBtn">Create account</button></div>
-      <p class="muted" id="loginMsg" style="margin:0"></p>
-    </form>
-  </section>
+  <div id="loginView" class="signin" hidden>
+    <div class="brandside">
+      <div class="wordmark light lg"><span class="k">KBROS</span><span class="o">OMN<b>!</b></span></div>
+      <div>
+        <p class="claim">Every punch checked. <em>Every rupee right.</em></p>
+        <p>OT Punch for supervisors and HR: today's punches, approvals and the monthly allowance list.</p>
+      </div>
+      <p style="font-size:13px">Technicians punch on their phone at <a href="punch.html" style="color:var(--brass-400)">punch.html</a>.</p>
+    </div>
+    <div class="formside"><div>
+      <h2>Sign in</h2>
+      <p class="lead">Your email must first be added to the staff list by the admin. First time? Choose "Create account".</p>
+      <form id="loginForm" class="stack" novalidate>
+        <div class="field"><label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" required></div>
+        <div class="field"><label for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password" minlength="6" required></div>
+        <button class="btn primary" type="submit" style="height:46px">Sign in</button>
+        <button class="btn" type="button" id="signupBtn" style="height:46px">Create account</button>
+        <p class="muted" id="loginMsg" style="margin:0"></p>
+      </form>
+    </div></div>
+  </div>
 
-  <div id="app" hidden>
-    <nav class="tabs" role="tablist" id="tabs">
-      <button data-tab="board" role="tab">Today's board</button>
-      <button data-tab="allot" role="tab">Site allotment</button>
-      <button data-tab="entry" role="tab">Manual / WhatsApp entry</button>
-      <button data-tab="report" role="tab">HR report</button>
-      <button data-tab="setup" role="tab">Setup</button>
-    </nav>
+  <div id="app" class="shell" hidden>
+    <aside class="sidebar">
+      <div class="wordmark light"><span class="k">KBROS</span><span class="o">OMN<b>!</b></span></div>
+      <nav id="tabs" role="tablist">
+        <div class="sec">Supervisor</div>
+        <button data-tab="board" data-f="all" role="tab"><i class="icon-layout-dashboard"></i><span>Dashboard</span></button>
+        <button data-tab="board" data-f="attention" role="tab"><i class="icon-triangle-alert"></i><span>Needs attention</span><span class="count" id="navAttn"></span></button>
+        <button data-tab="board" data-f="approve" role="tab"><i class="icon-check-check"></i><span>Approve</span><span class="count" id="navPend"></span></button>
+        <button data-tab="allot" role="tab"><i class="icon-map-pin"></i><span>Site allotment</span></button>
+        <button data-tab="entry" role="tab"><i class="icon-message-square-text"></i><span>Manual entry</span></button>
+        <div class="sec">HR</div>
+        <button data-tab="report" role="tab"><i class="icon-file-spreadsheet"></i><span>Reports</span></button>
+        <div class="sec">Admin</div>
+        <button data-tab="setup" role="tab"><i class="icon-settings"></i><span>Setup</span></button>
+      </nav>
+      <div class="foot">
+        <span id="me"></span>
+        <button class="btn sm" id="logoutBtn" hidden><i class="icon-log-out"></i>Log out</button>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <button class="btn sm ghost menuBtn" id="menuBtn" aria-label="Menu"><i class="icon-menu"></i></button>
+        <div class="ttl" style="flex:1"><span id="pageSub"></span><h1 id="pageTitle">Dashboard</h1></div>
+        <div class="actions" id="dateBox" hidden><label for="workDate">Working date</label><input type="date" id="workDate"></div>
+      </header>
+      <div class="content">
 
     <!-- BOARD -->
     <section id="tab-board" hidden>
@@ -43,14 +65,16 @@
         <div class="seg" id="filter">
           <button data-f="all" aria-pressed="true">All</button>
           <button data-f="attention" aria-pressed="false">Needs attention</button>
+          <button data-f="approve" aria-pressed="false">Waiting approval</button>
           <button data-f="missing" aria-pressed="false">Not reported</button>
           <button data-f="approved" aria-pressed="false">Approved</button>
         </div>
         <span class="grow"></span>
-        <button class="btn" id="copyReminder">Copy reminder for missing</button>
-        <button class="btn ok" id="approveClean">Approve all clean</button>
+        <button class="btn" id="copyReminder"><i class="icon-copy"></i>Copy reminder for missing</button>
+        <button class="btn accent" id="approveClean"><i class="icon-check-check"></i>Approve all clean</button>
       </div>
-      <div class="tablebox"><table class="wide">
+      <div class="attn" id="attnList" hidden></div>
+      <div class="tablebox" id="boardTable"><table class="wide">
         <thead><tr><th>Technician</th><th>Times</th><th>Location · OPR</th><th class="num">OT h</th><th class="num">TA ₹</th><th>Checks</th><th>Present</th><th>Food</th><th>Action</th></tr></thead>
         <tbody id="boardBody"></tbody>
       </table></div>
@@ -108,8 +132,8 @@
         <div class="seg" id="repMode"><button data-m="day" aria-pressed="true">Daily report</button><button data-m="month" aria-pressed="false">Month — HR allowance list</button></div>
         <input type="month" id="repMonth" hidden aria-label="Report month">
         <span class="grow"></span>
-        <button class="btn" id="copyRep">Copy for WhatsApp / email</button>
-        <button class="btn primary" id="xlsxRep">Download Excel</button>
+        <button class="btn" id="copyRep"><i class="icon-copy"></i>Copy for WhatsApp / email</button>
+        <button class="btn accent" id="xlsxRep"><i class="icon-file-spreadsheet"></i>Export to Excel</button>
       </div>
       <div id="repNote"></div>
       <div class="tablebox" id="repTable"></div>
@@ -171,8 +195,9 @@
         <div class="toolbar" style="margin:10px 0 0"><button class="btn primary" id="saveRoster">Save people</button></div>
       </div>
     </section>
+      </div>
+    </div>
   </div>
-</div>
 <div id="overlay"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>

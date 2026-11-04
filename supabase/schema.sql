@@ -241,9 +241,15 @@ begin
     'name', (select name from employees where emp_code = v_emp),
     'team', (select t.name from employees e left join teams t on t.id = e.team_id where e.emp_code = v_emp),
     'work_date', v_date,
-    'site', (select json_build_object('name', s.name, 'shift', a.shift, 'opr_no', a.opr_no)
+    'site', (select json_build_object('name', s.name, 'shift', a.shift, 'opr_no', a.opr_no,
+                      'shift_start', case when a.shift = 'S2' then st.s2_start else st.s1_start end,
+                      'shift_end', case when a.shift = 'S2' then st.s2_end else st.s1_end end,
+                      'ta_type', a.ta_type,
+                      'ta_amount', coalesce(a.ta_amount, case a.ta_type when 'local' then st.ta_local when 'factory' then st.ta_factory
+                                     when 'outstation' then st.ta_outstation when 'night' then st.ta_night else 0 end),
+                      'radius', coalesce(s.radius_m, st.site_radius_m))
                from employees e join allotments a on a.team_id = e.team_id and a.work_date = v_date
-               left join sites s on s.id = a.site_id where e.emp_code = v_emp),
+               left join sites s on s.id = a.site_id cross join settings st where e.emp_code = v_emp and st.id = 1),
     'punches', coalesce((select json_agg(json_build_object('kind', kind, 'at', at, 'dist_m', dist_m) order by at)
                            from punches where emp_code = v_emp and work_date = v_date), '[]'),
     'next', next_punches(v_emp, v_date));

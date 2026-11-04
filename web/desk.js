@@ -68,19 +68,46 @@ async function loadRef() {
 }
 
 /* ---------- tabs ---------- */
+const PAGES = {
+  all: ['Dashboard', () => `${niceDate(S.date)} · all teams`],
+  attention: ['Needs attention', () => `${niceDate(S.date)} · technicians flagged today`],
+  approve: ['Approve', () => `${niceDate(S.date)} · entries waiting for approval`],
+  missing: ['Not reported', () => `${niceDate(S.date)} · no punches or entry yet`],
+  approved: ['Approved', () => niceDate(S.date)],
+  allot: ['Site allotment', () => `${niceDate(S.date)} · where each team works`],
+  entry: ['Manual entry', () => 'Team entry and WhatsApp messages'],
+  report: ['Reports', () => 'OT and allowance list for HR'],
+  setup: ['Setup', () => 'Rules, sites, staff logins and roster'],
+};
+const niceDate = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
 function setTab(t) {
   if (!$('#tab-' + t)) t = 'board';
   S.tab = t;
-  $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
   $$('section[id^="tab-"]').forEach(s => (s.hidden = s.id !== 'tab-' + t));
   try { history.replaceState(null, '', '#' + t); } catch (_) {}
+  markNav();
   refresh();
+}
+// sidebar highlight + top bar title follow the tab (and the board filter)
+function markNav() {
+  const key = S.tab === 'board' ? S.filter : S.tab;
+  $$('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === S.tab && (S.tab !== 'board' || b.dataset.f === key || (b.dataset.f === 'all' && !$(`#tabs button[data-f="${key}"]`)))));
+  $$('#filter button').forEach(x => x.setAttribute('aria-pressed', x.dataset.f === S.filter));
+  const [title, sub] = PAGES[key] || PAGES.all;
+  $('#pageTitle').textContent = title; $('#pageSub').textContent = sub();
+  $('#app').classList.remove('nav-open');
 }
 function refresh() {
   ({ board: loadBoard, allot: loadAllot, entry: renderEntry, report: loadReport, setup: renderSetup })[S.tab]();
 }
-$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
-$('#workDate').addEventListener('change', e => { S.date = e.target.value || todayIST(); refresh(); });
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  if (b.dataset.f) S.filter = b.dataset.f;
+  setTab(b.dataset.tab);
+});
+$('#menuBtn').addEventListener('click', () => $('#app').classList.toggle('nav-open'));
+$('#workDate').addEventListener('change', e => { S.date = e.target.value || todayIST(); markNav(); refresh(); });
 
 /* ---------- board ---------- */
 function flags(d) {
@@ -134,12 +161,21 @@ function renderBoard() {
   const ot = rows.reduce((s, r) => s + (r.d ? +r.d.ot_h : 0), 0);
   const ta = rows.reduce((s, r) => s + (r.d ? +r.d.ta_amount : 0), 0);
   const food = rows.filter(r => r.d && foodYes(r.d)).length;
-  $('#tiles').innerHTML = `
-    <div class="tile"><div class="k">Reported</div><div class="v">${rep}<small> / ${total}</small></div></div>
-    <div class="tile"><div class="k">Needs attention</div><div class="v" style="color:${att ? 'var(--bad)' : 'inherit'}">${att}</div></div>
-    <div class="tile"><div class="k">Approved</div><div class="v">${appr}<small> / ${rep}</small></div></div>
-    <div class="tile"><div class="k">OT · TA · Food</div><div class="v">${fmtH(ot)}<small> h · ₹${ta.toLocaleString('en-IN')} · ${food}</small></div></div>`;
-  const keep = r => S.filter === 'all' || (S.filter === 'missing' && r.state === 'missing') || (S.filter === 'approved' && r.state === 'approved') || (S.filter === 'attention' && (r.state === 'bad' || r.state === 'warn'));
+  const pend = rows.filter(r => r.d && r.state !== 'approved').length;
+  const tile = (k, icon, v, small) => `<div class="tile"><div class="k">${k}<i class="icon-${icon}"></i></div><div class="v">${v}${small ? `<small>${small}</small>` : ''}</div></div>`;
+  $('#tiles').innerHTML = tile('Punched in', 'log-in', rep, `of ${total}`)
+    + tile('Not reported', 'user-x', total - rep)
+    + tile('Needs attention', 'triangle-alert', att)
+    + tile('Approved', 'check-check', appr, `of ${rep}`)
+    + tile('Total OT', 'timer', fmtH(ot), `h · TA ₹ ${ta.toLocaleString('en-IN')}${food ? ` · food ${food}` : ''}`);
+  $('#navAttn').textContent = att || '';
+  $('#navPend').textContent = pend || '';
+  $('#pageSub').textContent = (PAGES[S.filter] || PAGES.all)[1]();
+  $('#tab-board').classList.toggle('attn-mode', S.filter === 'attention');
+  if (S.filter === 'attention') { $('#boardTable').hidden = true; $('#attnList').hidden = false; renderAttention(rows.filter(r => r.state === 'bad' || r.state === 'warn')); return; }
+  $('#boardTable').hidden = false; $('#attnList').hidden = true;
+  const keep = r => S.filter === 'all' || (S.filter === 'missing' && r.state === 'missing') || (S.filter === 'approved' && r.state === 'approved')
+    || (S.filter === 'approve' && r.d && r.state !== 'approved');
   const cls = { missing: 'state-missing', bad: 'state-bad', warn: 'state-warn', approved: 'state-ok', clean: '' };
   const byTeam = new Map();
   rows.forEach(r => { const k = teamName(r.e.team_id); byTeam.set(k, [...(byTeam.get(k) || []), r]); });
@@ -185,9 +221,58 @@ async function review(code, date, changes) {
   return !fail(error);
 }
 
+// "Needs attention": one card per flagged technician with selfie, location stamp and map link
+async function renderAttention(list) {
+  const box = $('#attnList');
+  if (!list.length) { box.innerHTML = '<div class="card empty">Nothing needs attention today.</div>'; return; }
+  const { data: punches } = await sb.from('punches').select('emp_code, kind, at, lat, lng, dist_m, photo_path').eq('work_date', S.date).order('at');
+  const byEmp = new Map();
+  (punches || []).forEach(p => byEmp.set(p.emp_code, [...(byEmp.get(p.emp_code) || []), p]));
+  const pick = r => {
+    const ps = (byEmp.get(r.e.emp_code) || []).filter(p => p.lat != null);
+    const radius = r.d && r.d.radius;
+    return ps.find(p => radius && p.dist_m > radius) || ps.find(p => p.kind === 'work_in') || ps[0] || null;
+  };
+  const shots = list.map(pick);
+  const paths = shots.filter(p => p && p.photo_path).map(p => p.photo_path);
+  const urls = new Map();
+  if (paths.length) {
+    const { data } = await sb.storage.from('punch-photos').createSignedUrls(paths, 600);
+    (data || []).forEach(u => u.signedUrl && urls.set(u.path, u.signedUrl));
+  }
+  const day = new Date(S.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  box.innerHTML = list.map((r, i) => {
+    const { e, d, fl } = r, p = shots[i];
+    const url = p && urls.get(p.photo_path);
+    const stamp = p ? `${fmtTs(p.at)} · ${day}\n${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}` : 'No photo';
+    const ph = url ? `<button class="ph" data-act="photo" data-path="${esc(p.photo_path)}"><img src="${esc(url)}" alt="Selfie of ${esc(e.name)}"><span class="stamp">${esc(stamp)}</span></button>`
+      : `<div class="ph"><i class="${p ? 'icon-user-round' : 'icon-camera-off'}"></i><span class="stamp">${esc(stamp)}</span></div>`;
+    const issues = fl.filter(f => f[0] === 'bad' || f[0] === 'warn' || f[0] === 'need');
+    const map = p ? `<a class="btn" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener"><i class="icon-map-pin"></i>Open map</a>` : '';
+    return `<div class="attn-card" data-emp="${esc(e.emp_code)}">${ph}
+      <div style="min-width:0"><div class="who">${esc(e.name)}</div>
+        <div class="meta"><span class="mono">${esc(e.emp_code)}</span> · ${esc(d.location || teamName(e.team_id))}${d.opr_no ? ` · <span class="mono">${esc(d.opr_no)}</span>` : ''}</div>
+        ${issues.map(f => `<div class="flag"><span class="chip ${f[0]}">${esc(flagType(f[1]))}</span><span>${esc(f[1])}</span></div>`).join('')}</div>
+      <div class="side">${map}${canReview() ? '<button class="btn" data-act="edit"><i class="icon-pencil"></i>Edit</button>' : ''}</div></div>`;
+  }).join('');
+}
+const flagType = t => /late/i.test(t) ? 'Late start' : /away from site|outside/i.test(t) ? 'Outside site' : /missing|no punch/i.test(t) ? 'Missing punch'
+  : /OT over|Duty over/i.test(t) ? 'Over limit' : /not finished/i.test(t) ? 'Pending punch' : /Presence/i.test(t) ? 'Presence' : /Food/i.test(t) ? 'Food' : /Query/i.test(t) ? 'Query' : 'Check';
+
+$('#attnList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'photo') {
+    const { data, error } = await sb.storage.from('punch-photos').createSignedUrl(b.dataset.path, 300);
+    if (!fail(error)) window.open(data.signedUrl, '_blank', 'noopener');
+  } else if (b.dataset.act === 'edit') {
+    const code = b.closest('.attn-card').dataset.emp;
+    openEdit(code, S.days.get(code));
+  }
+});
+
 $('#filter').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  S.filter = b.dataset.f; $$('#filter button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderBoard();
+  S.filter = b.dataset.f; markNav(); renderBoard();
 });
 
 $('#boardBody').addEventListener('click', async e => {

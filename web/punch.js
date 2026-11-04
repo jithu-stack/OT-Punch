@@ -79,23 +79,43 @@ async function load() {
   state = data; render();
 }
 
+const TA_LABEL = { local: 'Local', factory: 'Factory', outstation: 'Outstation', night: 'Night journey', custom: 'Other' };
+const km = v => (v >= 1000 ? (v / 1000).toFixed(1) + ' km' : v + ' m');
+
 function render() {
-  const s = state;
-  $('#who').textContent = `${s.name} · ${s.emp_code}`;
-  $('#where').textContent = [s.team, s.site ? `Site: ${s.site.name || 'not set'} · ${s.site.shift === 'S2' ? 'Shift 2' : 'Shift 1'}${s.site.opr_no ? ' · OPR ' + s.site.opr_no : ''}` : 'No site allotted today — punch anyway'].filter(Boolean).join(' · ');
+  const s = state, site = s.site;
+  $('#avatar').textContent = s.name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  $('#who').textContent = s.name;
+  $('#whoSub').innerHTML = `<span class="mono">${esc(s.emp_code)}</span>${s.team ? ' · ' + esc(s.team) : ''}`;
   $('#workDate').textContent = s.work_date;
+  const fact = (k, v, mono) => `<div><div class="label">${k}</div><div class="val${mono ? ' mono' : ''}">${esc(v)}</div></div>`;
+  $('#facts').innerHTML = site
+    ? fact('Shift', site.shift_start ? `${hhmm(site.shift_start)}–${hhmm(site.shift_end)}` : site.shift === 'S2' ? 'Shift 2' : 'Shift 1', true)
+      + fact('OPR no.', site.opr_no || '—', true) + fact('Site', site.name || 'Not set')
+      + fact('Travel allowance', `${TA_LABEL[site.ta_type] || 'Local'}${site.ta_amount != null ? ' · ₹ ' + site.ta_amount : ''}`)
+    : fact('Site', 'Not allotted today') + fact('Note', 'Punch anyway');
+
   const done = new Map(s.punches.map(p => [p.kind, p]));
   const next = new Set(s.next);
   $('#steps').innerHTML = STEPS.map(st => {
     const p = done.get(st.kind);
     const skipped = st.skip && done.has(st.skip);
-    const cls = p ? 'done' : skipped ? 'skip' : next.has(st.kind) ? 'next' : '';
-    const right = p ? `${fmtTs(p.at)}${p.dist_m != null ? ` · ${p.dist_m >= 1000 ? (p.dist_m / 1000).toFixed(1) + ' km' : p.dist_m + ' m'}` : ''}` : skipped ? 'skipped' : '';
-    return `<li class="${cls}"><span>${esc(st.label)}</span><span class="mono">${esc(right)}</span></li>`;
+    const cls = p ? 'done' : skipped ? 'skip' : next.has(st.kind) ? 'next' : 'pending';
+    const at = p && p.dist_m != null && site && site.radius ? p.dist_m <= site.radius : null;
+    const chip = p ? (at === null ? (p.dist_m != null ? `<span class="chip">${km(p.dist_m)}</span>` : '')
+      : `<span class="chip ${at ? 'ok' : 'bad'}">${at ? 'At site' : 'Outside site'}</span>`)
+      : skipped ? '<span class="chip">Skipped</span>' : '';
+    const icon = p ? 'check' : skipped ? 'minus' : next.has(st.kind) ? 'camera' : 'circle';
+    return `<li class="${cls}"><span class="dot"><i class="icon-${icon}"></i></span><span class="lbl">${esc(st.label)}</span><span class="tm">${p ? esc(fmtTs(p.at)) : '—'}</span>${chip}</li>`;
   }).join('');
+
+  const main = s.next.find(k => !k.startsWith('no_'));
+  const step = STEPS.find(x => x.kind === main);
+  if (!$('#status').textContent && step) $('#status').innerHTML = `<i class="icon-clock"></i><span>Next: ${esc(step.label)}.</span>`;
   $('#actions').innerHTML = s.next.length
-    ? s.next.map(k => `<button class="btn big ${k.startsWith('no_') ? '' : 'primary'}" data-kind="${k}">${esc(BUTTON[k])}</button>`).join('')
-    : '<div class="card" style="text-align:center"><b>Day complete ✓</b><p class="muted" style="margin:4px 0 0">All punches done. See you tomorrow.</p></div>';
+    ? (main ? `<button class="punchbtn" data-kind="${main}"><span class="ring"><i class="icon-camera"></i></span><span><span class="verb">${main.endsWith('_in') ? 'Punch in' : 'Punch out'}</span><br><span class="what">${esc(step.label)}</span></span></button>` : '')
+      + s.next.filter(k => k.startsWith('no_')).map(k => `<button class="skipbtn" data-kind="${k}"><i class="icon-circle-slash"></i>${esc(BUTTON[k])}</button>`).join('')
+    : `<div class="done-card"><span class="tick"><i class="icon-check"></i></span><b>All punches for today are complete.</b><span class="muted">Sent to your supervisor for approval.</span></div>`;
 }
 
 $('#refreshBtn').addEventListener('click', load);
@@ -148,7 +168,7 @@ async function doPunch(kind, pos, path) {
 function setBusy(on, text) {
   busy = on;
   $$('#actions button').forEach(b => (b.disabled = on));
-  $('#status').textContent = text || '';
+  $('#status').innerHTML = text ? `<i class="icon-${on ? 'loader' : 'info'}"></i><span>${esc(text)}</span>` : '';
 }
 
 function getPosition() {
