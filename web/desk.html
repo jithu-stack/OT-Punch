@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stemhub OT Desk</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="tag">OT</span><h1>OT Desk</h1><span class="muted" id="me"></span></div>
+    <div class="check" id="dateBox" hidden><label for="workDate" class="muted">Working date</label><input type="date" id="workDate"></div>
+    <button class="btn sm" id="logoutBtn" hidden>Log out</button>
+  </header>
+
+  <!-- LOGIN -->
+  <section id="loginView" class="card stack narrow" hidden>
+    <h2>Supervisor / HR login</h2>
+    <p class="lead">Your email must first be added to the staff list by the admin. First time: choose "Create account".</p>
+    <form id="loginForm" class="stack" novalidate>
+      <div class="field"><label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="lPass">Password</label><input id="lPass" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="toolbar" style="margin:0"><button class="btn primary" type="submit">Log in</button><button class="btn" type="button" id="signupBtn">Create account</button></div>
+      <p class="muted" id="loginMsg" style="margin:0"></p>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button data-tab="board" role="tab">Today's board</button>
+      <button data-tab="allot" role="tab">Site allotment</button>
+      <button data-tab="entry" role="tab">Manual / WhatsApp entry</button>
+      <button data-tab="report" role="tab">HR report</button>
+      <button data-tab="setup" role="tab">Setup</button>
+    </nav>
+
+    <!-- BOARD -->
+    <section id="tab-board" hidden>
+      <div class="tiles" id="tiles"></div>
+      <div class="toolbar">
+        <div class="seg" id="filter">
+          <button data-f="all" aria-pressed="true">All</button>
+          <button data-f="attention" aria-pressed="false">Needs attention</button>
+          <button data-f="missing" aria-pressed="false">Not reported</button>
+          <button data-f="approved" aria-pressed="false">Approved</button>
+        </div>
+        <span class="grow"></span>
+        <button class="btn" id="copyReminder">Copy reminder for missing</button>
+        <button class="btn ok" id="approveClean">Approve all clean</button>
+      </div>
+      <div class="tablebox"><table class="wide">
+        <thead><tr><th>Technician</th><th>Times</th><th>Location · OPR</th><th class="num">OT h</th><th class="num">TA ₹</th><th>Checks</th><th>Present</th><th>Food</th><th>Action</th></tr></thead>
+        <tbody id="boardBody"></tbody>
+      </table></div>
+    </section>
+
+    <!-- ALLOTMENT -->
+    <section id="tab-allot" hidden>
+      <p class="lead">Where each team works on the working date. The phone punch measures distance to this site; the shift and travelling allowance type are used for the calculation.</p>
+      <div class="toolbar"><button class="btn" id="copyPrevAllot">Copy from previous day</button><span class="grow"></span><button class="btn primary" id="saveAllot">Save allotment</button></div>
+      <div class="tablebox"><table class="wide">
+        <thead><tr><th>Team</th><th>Site</th><th>Shift</th><th>OPR no.</th><th>Travelling allowance</th><th>Amount ₹ (other)</th></tr></thead>
+        <tbody id="allotBody"></tbody>
+      </table></div>
+    </section>
+
+    <!-- ENTRY -->
+    <section id="tab-entry" hidden>
+      <div class="grid2">
+        <form class="card" id="entryForm" novalidate>
+          <h2>Team entry (no punches)</h2>
+          <p class="lead">For days someone could not punch. Same times for every ticked member. OT = time beyond the 8.5 h shift; Sunday / holiday = all hours ×2.</p>
+          <div class="form">
+            <div class="field"><label for="fTeam">Team</label><select id="fTeam"></select></div>
+            <div class="field"><label for="fDate">Date</label><input type="date" id="fDate"></div>
+            <div class="field full"><label>Members who worked</label><div class="members" id="fMembers"></div></div>
+            <div class="field"><label for="fShift">Shift</label><select id="fShift"><option value="">Auto</option><option value="S1">Shift 1</option><option value="S2">Shift 2</option></select></div>
+            <div class="field"><label for="fLoc">Location</label><input id="fLoc"></div>
+            <div class="field"><label for="fIn">Work start</label><input type="time" id="fIn"></div>
+            <div class="field"><label for="fOut">Work end</label><input type="time" id="fOut"></div>
+            <div class="field"><label for="fTravel">Traveling time</label><input id="fTravel" placeholder="e.g. 9:30 PM to 2:30 AM"></div>
+            <div class="field"><label for="fBreak">Extra unpaid break (min)</label><input type="number" id="fBreak" min="0" step="5" value="0"></div>
+            <div class="field full"><label for="fOpr">OPR no.</label><input id="fOpr"></div>
+            <div class="field"><label for="fTa">Travelling allowance</label><select id="fTa" class="taSelect"></select></div>
+            <div class="field"><label for="fTaAmt">Amount ₹ (other)</label><input type="number" id="fTaAmt" min="0" step="50"></div>
+            <div class="field full"><label for="fRemark">Remark</label><input id="fRemark"></div>
+            <div class="field full check"><input type="checkbox" id="fFood"><label for="fFood">Food allowance claimed</label><input type="checkbox" id="fPresent" style="margin-left:18px"><label for="fPresent">Site presence confirmed</label></div>
+          </div>
+          <div class="toolbar" style="margin:14px 0 0"><button class="btn primary" type="submit">Save entry</button></div>
+        </form>
+        <div class="card">
+          <h2>Paste WhatsApp messages</h2>
+          <p class="lead">Backup when the phone app is not used. One line per team in this format:</p>
+          <pre class="mono" style="white-space:pre-wrap;background:var(--sunk);padding:10px;border-radius:6px;margin:0 0 10px" id="tplText">OT | TEAM 3 | DM140, HR703, NE633 | S2 | 08:30 | 20:00 | Travel: 21:00 | Loc: JP Nagar | OPR: 07-26-KA-015 | TA: Local | Remark: -</pre>
+          <div class="toolbar"><button class="btn sm" id="copyTpl">Copy format</button></div>
+          <textarea id="pasteBox" rows="8" placeholder="Paste the chat here"></textarea>
+          <div class="toolbar" style="margin:10px 0 0"><button class="btn primary" id="parseBtn">Read messages</button><span class="muted" id="parseInfo"></span><span class="grow"></span><button class="btn ok" id="saveParsed" disabled>Save entries</button></div>
+          <div id="parsedWrap" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORT -->
+    <section id="tab-report" hidden>
+      <div class="toolbar">
+        <div class="seg" id="repMode"><button data-m="day" aria-pressed="true">Daily report</button><button data-m="month" aria-pressed="false">Month — HR allowance list</button></div>
+        <input type="month" id="repMonth" hidden aria-label="Report month">
+        <span class="grow"></span>
+        <button class="btn" id="copyRep">Copy for WhatsApp / email</button>
+        <button class="btn primary" id="xlsxRep">Download Excel</button>
+      </div>
+      <div id="repNote"></div>
+      <div class="tablebox" id="repTable"></div>
+    </section>
+
+    <!-- SETUP -->
+    <section id="tab-setup" hidden>
+      <p class="lead" id="setupNote"></p>
+      <div class="grid2">
+        <form class="card" id="rulesForm" novalidate>
+          <h2>OT &amp; allowance rules</h2>
+          <div class="form">
+            <div class="field"><label>Shift 1 start – end</label><div class="check"><input type="time" name="s1_start"><input type="time" name="s1_end"></div></div>
+            <div class="field"><label>Shift 2 start – end</label><div class="check"><input type="time" name="s2_start"><input type="time" name="s2_end"></div></div>
+            <div class="field"><label>Grace (minutes)</label><input type="number" name="grace_min" min="0" step="5"></div>
+            <div class="field"><label>Round OT down to (hours)</label><select name="round_h"><option value="0.25">0.25</option><option value="0.5">0.5</option><option value="1">1</option></select></div>
+            <div class="field"><label>Flag OT above (h)</label><input type="number" name="max_ot_h" step="0.5" min="0"></div>
+            <div class="field"><label>Flag duty above (h)</label><input type="number" name="max_duty_h" step="1" min="8"></div>
+            <div class="field"><label>Sunday / weekly-off multiplier</label><input type="number" name="off_mult" step="0.5" min="1"></div>
+            <div class="field"><label>Holiday multiplier</label><input type="number" name="hol_mult" step="0.5" min="1"></div>
+            <div class="field full check"><input type="checkbox" name="pg_ot" id="rPgOt"><label for="rPgOt">PG members earn OT (PG helpers always do)</label></div>
+            <div class="field"><label>TA Local ₹</label><input type="number" name="ta_local" min="0" step="50"></div>
+            <div class="field"><label>TA Factory / no travel ₹</label><input type="number" name="ta_factory" min="0" step="50"></div>
+            <div class="field"><label>TA Outstation return ₹</label><input type="number" name="ta_outstation" min="0" step="50"></div>
+            <div class="field"><label>TA Night journey ₹</label><input type="number" name="ta_night" min="0" step="50"></div>
+            <div class="field"><label>Food allowance if work/OT ends at or after</label><input type="time" name="food_after"></div>
+            <div class="field"><label>Food allowance ₹ (0 = not shown)</label><input type="number" name="food_amount" min="0" step="10"></div>
+            <div class="field"><label>Default site radius (m)</label><input type="number" name="site_radius_m" min="50" step="50"></div>
+            <div class="field full"><label for="holBox">Holidays — one per line: YYYY-MM-DD, name</label><textarea id="holBox" rows="4"></textarea></div>
+          </div>
+          <div class="toolbar" style="margin:14px 0 0"><button class="btn primary" type="submit">Save rules</button></div>
+        </form>
+        <div class="stack">
+          <div class="card">
+            <h2>Sites</h2>
+            <p class="lead">Stand at the site and press "Use my location" to fill the coordinates.</p>
+            <div class="tablebox"><table><thead><tr><th>Name</th><th>Lat</th><th>Lng</th><th>Radius m</th><th></th></tr></thead><tbody id="sitesBody"></tbody></table></div>
+            <div class="toolbar" style="margin:10px 0 0"><button class="btn" id="addSite">Add site</button><span class="grow"></span><button class="btn primary" id="saveSites">Save sites</button></div>
+          </div>
+          <div class="card">
+            <h2>Staff logins</h2>
+            <div class="tablebox"><table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Login</th></tr></thead><tbody id="staffBody"></tbody></table></div>
+            <form class="toolbar" id="staffForm" style="margin:10px 0 0" novalidate>
+              <input type="email" id="sEmail" placeholder="email" required><input id="sName" placeholder="name">
+              <select id="sRole"><option value="supervisor">supervisor</option><option value="hr">hr</option><option value="admin">admin</option></select>
+              <button class="btn primary" type="submit">Add</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Roster</h2>
+        <p class="lead">Activation code: the technician enters it once on the phone to create their PIN. "Activated" means they already have a login — to reset a forgotten PIN, delete their user in Supabase → Authentication, then press "New code".</p>
+        <div class="toolbar"><button class="btn" id="copyCodes">Copy activation codes (WhatsApp)</button></div>
+        <div class="tablebox"><table class="wide"><thead><tr><th>EMP code</th><th>Name</th><th>Team</th><th>Role</th><th>PG member</th><th>Active</th><th>Phone login</th></tr></thead><tbody id="rosterBody"></tbody></table></div>
+        <h2 style="margin-top:16px">Add or update people</h2>
+        <p class="lead">One per line: <span class="mono">EMP CODE, Name, Team, Role (Leader/Member/Helper), PG or Regular</span>. Existing EMP codes are updated.</p>
+        <textarea id="rosterBox" rows="4" placeholder="HR840, New Person, INSTALLATION TEAM 2, Member, Regular"></textarea>
+        <div class="toolbar" style="margin:10px 0 0"><button class="btn primary" id="saveRoster">Save people</button></div>
+      </div>
+    </section>
+  </div>
+</div>
+<div id="overlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="desk.js"></script>
+</body>
+</html>

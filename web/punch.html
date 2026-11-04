@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stemhub Punch</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F4E5F">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <header class="top">
+    <div class="brand"><span class="tag">Punch</span><h1>Stemhub Punch</h1></div>
+    <button class="btn sm" id="logoutBtn" hidden>Log out</button>
+  </header>
+
+  <!-- LOGIN / ACTIVATE -->
+  <section id="loginView" class="card stack" hidden>
+    <div class="seg" id="loginMode">
+      <button data-m="login" aria-pressed="true">Log in</button>
+      <button data-m="activate" aria-pressed="false">First time? Activate</button>
+    </div>
+    <form id="loginForm" class="stack" novalidate>
+      <div class="field"><label for="lEmp">EMP code</label><input id="lEmp" autocomplete="username" autocapitalize="characters" placeholder="e.g. HR703" required></div>
+      <div class="field" id="actField" hidden><label for="lAct">Activation code (from your supervisor)</label><input id="lAct" inputmode="numeric" autocomplete="one-time-code"></div>
+      <div class="field"><label for="lPin" id="lPinLabel">6-digit PIN</label><input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" minlength="6" required></div>
+      <div class="field" id="pin2Field" hidden><label for="lPin2">Repeat new PIN</label><input id="lPin2" type="password" inputmode="numeric" autocomplete="new-password"></div>
+      <button class="btn primary big" id="loginBtn" type="submit">Log in</button>
+      <p class="muted" id="loginMsg" style="margin:0"></p>
+    </form>
+  </section>
+
+  <!-- PUNCH -->
+  <section id="punchView" class="stack" hidden>
+    <div class="card">
+      <h2 id="who"></h2>
+      <p class="muted" id="where" style="margin:0"></p>
+    </div>
+    <div class="card stack">
+      <div class="toolbar" style="margin:0"><b>Today</b><span class="mono muted" id="workDate"></span><span class="grow"></span><button class="btn sm" id="refreshBtn">Refresh</button></div>
+      <ul class="steps" id="steps"></ul>
+    </div>
+    <div class="stack" id="actions"></div>
+    <p class="muted" id="status" role="status"></p>
+    <input type="file" id="camera" accept="image/*" capture="user" hidden>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script src="punch.js"></script>
+</body>
+</html>

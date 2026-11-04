@@ -1,0 +1,8 @@
+{
+  "name": "Stemhub Punch",
+  "short_name": "Punch",
+  "start_url": "punch.html",
+  "display": "standalone",
+  "background_color": "#F2F4F3",
+  "theme_color": "#1F4E5F"
+}
