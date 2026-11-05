@@ -1,8 +1,8 @@
 {
-  "name": "Stemhub Punch",
-  "short_name": "Punch",
+  "name": "OT Punch",
+  "short_name": "OT Punch",
   "start_url": "punch.html",
   "display": "standalone",
-  "background_color": "#F2F4F3",
-  "theme_color": "#1F4E5F"
+  "background_color": "#FFFFFF",
+  "theme_color": "#16181B"
 }
