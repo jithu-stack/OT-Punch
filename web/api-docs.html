@@ -68,7 +68,10 @@
     persistAuthorization: true,
     tryItOutEnabled: true,
     docExpansion: 'list',
-    onComplete: () => ui.preauthorizeApiKey('apikey', window.STEMHUB_CONFIG.SUPABASE_ANON_KEY),
+    onComplete: () => {
+      ui.preauthorizeApiKey('apikey', window.STEMHUB_CONFIG.SUPABASE_ANON_KEY);
+      if (location.hash === '#mcp') document.getElementById('mcp').scrollIntoView();
+    },
   });
 </script>
 </body>
