@@ -159,6 +159,9 @@ td input[type=checkbox] { width: 18px; height: 18px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .sidebar .sec { padding: 16px 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--alu-500); }
 .sidebar nav button { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--alu-400); font: 500 14px var(--sans); text-align: left; cursor: pointer; }
+.sidebar nav .navlink { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--radius-sm); color: var(--alu-400); font: 500 14px var(--sans); text-decoration: none; }
+.sidebar nav .navlink:hover { background: rgba(255,255,255,.04); color: var(--alu-300); }
+.sidebar nav .navlink i { font-size: 17px; }
 .sidebar nav button:hover { background: rgba(255,255,255,.04); }
 .sidebar nav button i { font-size: 17px; }
 .sidebar nav button span { flex: 1; }

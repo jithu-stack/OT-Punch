@@ -168,7 +168,23 @@ Header `Prefer: resolution=merge-duplicates` turns the insert into an upsert on 
 
 ---
 
-## 6. MCP server (use the data from Claude)
+## 6. MCP servers (use the data from Claude)
+
+### OT Punch MCP (for supervisors and HR, read-only)
+```
+https://ot-punch.vercel.app/api/mcp?token=<MCP_TOKEN>
+```
+This is a Vercel function ([api/mcp.js](api/mcp.js)) using MCP Streamable HTTP. It has four tools: `day_board`, `needs_attention`, `monthly_report` and `employee_history`. It reads Supabase as an **HR** login, so it cannot change data.
+
+Setup:
+1. Add `mcp@stemhub.in` as **hr** in OT Desk → Setup → Staff logins, then *Create account* with a strong password.
+2. In Vercel, set the env vars `MCP_TOKEN`, `MCP_EMAIL` and `MCP_PASSWORD`, then redeploy.
+3. Copy the link from OT Desk → Setup → **Connect Claude (MCP)**, or see https://ot-punch.vercel.app/api-docs.html#mcp.
+4. Add it in Claude → Settings → Connectors → *Add custom connector*.
+
+Changing `MCP_TOKEN` revokes every copy of the link.
+
+### Supabase MCP (admin: schema and SQL)
 
 Supabase runs an official MCP server, so nothing needs to be hosted. Claude signs in with **your** Supabase account in the browser; no key is stored.
 

@@ -12,6 +12,12 @@
   .apihead h1 { font-size: 20px; }
   .apihead span { color: var(--alu-400); font-size: 13px; }
   .apihead a { color: var(--brass-400); font-size: 13px; margin-left: auto; }
+  .mcpbox { max-width: 1460px; margin: 0 auto; padding: 28px 20px 8px; }
+  .mcpbox > h2 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .mcplink { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--radius-md); background: var(--graphite-900); color: var(--white); }
+  .mcplink .label { color: var(--alu-400); text-transform: uppercase; letter-spacing: .08em; }
+  .mcplink code { font: 500 14px var(--mono); color: var(--brass-400); overflow-wrap: anywhere; }
+  .mcpbox td:first-child { white-space: nowrap; }
   .swagger-ui .topbar { display: none; }
   .swagger-ui, .swagger-ui .info .title, .swagger-ui .opblock-tag { font-family: var(--font-sans); }
   .swagger-ui .btn.authorize { border-color: var(--brass-500); color: var(--brass-700); }
@@ -24,10 +30,37 @@
   <div><h1>OT Punch API</h1><span>Supabase REST · OpenAPI 3 · <a href="openapi.yaml" style="margin:0">openapi.yaml</a></span></div>
   <a href="index.html">Back to app</a>
 </header>
+<section id="mcp" class="mcpbox">
+  <h2>Connect Claude — OT Punch MCP</h2>
+  <p class="lead">A read-only MCP server so Claude can answer questions from OT Punch: <i>"Who needs attention today?"</i>, <i>"Who hasn't reported in Team 3?"</i>, <i>"October OT and TA per person"</i>. The OT maths stays in the database; Claude only reads the results.</p>
+  <div class="mcplink"><span class="label">MCP link</span><code id="mcpUrl"></code></div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card">
+      <h2>Tools</h2>
+      <table><tbody>
+        <tr><td class="mono">day_board</td><td>Everyone's times, OT, TA, presence and status for a day, plus who hasn't reported</td></tr>
+        <tr><td class="mono">needs_attention</td><td>Flagged, not-yet-approved technicians for a day</td></tr>
+        <tr><td class="mono">monthly_report</td><td>HR list for a month: OT h, TA ₹, food days (approved only)</td></tr>
+        <tr><td class="mono">employee_history</td><td>One technician, day by day, between two dates</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <h2>One-time setup (admin)</h2>
+      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px">
+        <li>OT Desk → Setup → Staff logins: add <span class="mono">mcp@stemhub.in</span> with role <b>hr</b>. Then sign out and choose <b>Create account</b> with that email and a strong password.</li>
+        <li>Vercel → ot-punch → Settings → Environment Variables: add <span class="mono">MCP_TOKEN</span> (a long random string), <span class="mono">MCP_EMAIL</span> and <span class="mono">MCP_PASSWORD</span>. Then <b>Deployments → Redeploy</b>.</li>
+        <li>OT Desk → Setup → <b>Connect Claude (MCP)</b>: paste the token and <b>Copy MCP link</b>.</li>
+        <li>Claude → Settings → Connectors → <b>Add custom connector</b> → paste the link. In Claude Code: <span class="mono">claude mcp add --transport http ot-punch "&lt;link&gt;"</span></li>
+      </ol>
+      <p class="muted" style="margin:10px 0 0">Anyone with the link can read OT data. Share it only inside the team, and change <span class="mono">MCP_TOKEN</span> in Vercel to revoke it.</p>
+    </div>
+  </div>
+</section>
 <div id="swagger"></div>
 <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
 <script src="config.js"></script>
 <script>
+  document.getElementById('mcpUrl').textContent = `${location.origin}/api/mcp?token=<MCP_TOKEN>`;
   const ui = SwaggerUIBundle({
     url: 'openapi.yaml',
     dom_id: '#swagger',

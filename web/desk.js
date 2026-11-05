@@ -721,5 +721,15 @@ $('#saveRoster').addEventListener('click', async () => {
   await loadRef(); renderRoster(); toast(`${rows.length} saved`);
 });
 
+/* ---------- Claude (MCP) link ---------- */
+const mcpLink = () => `${location.origin}/api/mcp?token=${encodeURIComponent($('#mcpToken').value.trim())}`;
+$('#mcpToken').addEventListener('input', () => {
+  $('#mcpLink').textContent = $('#mcpToken').value.trim() ? mcpLink().replace(/token=.*/, 'token=••••••') : '';
+});
+$('#mcpCopy').addEventListener('click', () => {
+  if (!$('#mcpToken').value.trim()) return toast('Paste the MCP_TOKEN from Vercel first.');
+  copyText(mcpLink());
+});
+
 /* ---------- start ---------- */
 if (checkConfig()) start();

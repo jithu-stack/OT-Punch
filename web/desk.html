@@ -44,6 +44,7 @@
         <button data-tab="report" role="tab"><i class="icon-file-spreadsheet"></i><span>Reports</span></button>
         <div class="sec">Admin</div>
         <button data-tab="setup" role="tab"><i class="icon-settings"></i><span>Setup</span></button>
+        <a class="navlink" href="api-docs.html"><i class="icon-plug"></i><span>API &amp; Claude (MCP)</span></a>
       </nav>
       <div class="foot">
         <span id="me"></span>
@@ -193,6 +194,15 @@
         <p class="lead">One per line: <span class="mono">EMP CODE, Name, Team, Role (Leader/Member/Helper), PG or Regular</span>. Existing EMP codes are updated.</p>
         <textarea id="rosterBox" rows="4" placeholder="HR840, New Person, INSTALLATION TEAM 2, Member, Regular"></textarea>
         <div class="toolbar" style="margin:10px 0 0"><button class="btn primary" id="saveRoster">Save people</button></div>
+      </div>
+      <div class="card" style="margin-top:16px" id="mcpCard">
+        <h2>Connect Claude (MCP)</h2>
+        <p class="lead">Lets Claude answer questions such as "who needs attention today?" or "October OT per person" from this data. It is read-only and signs in as the HR login set in Vercel. Paste the <span class="mono">MCP_TOKEN</span> from Vercel to build the link. Share the link only with people allowed to see OT data. <a href="api-docs.html#mcp">Setup guide</a></p>
+        <div class="toolbar" style="margin:0">
+          <input id="mcpToken" type="password" placeholder="MCP_TOKEN" autocomplete="off" style="flex:1;min-width:200px">
+          <button class="btn" id="mcpCopy"><i class="icon-copy"></i>Copy MCP link</button>
+        </div>
+        <p class="muted mono" id="mcpLink" style="margin:10px 0 0;overflow-wrap:anywhere"></p>
       </div>
     </section>
       </div>
