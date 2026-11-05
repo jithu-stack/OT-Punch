@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OT Punch · API docs</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  body { background: var(--white); }
+  .apihead { background: var(--graphite-900); color: var(--white); padding: 20px 28px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .apihead h1 { font-size: 20px; }
+  .apihead span { color: var(--alu-400); font-size: 13px; }
+  .apihead a { color: var(--brass-400); font-size: 13px; margin-left: auto; }
+  .swagger-ui .topbar { display: none; }
+  .swagger-ui, .swagger-ui .info .title, .swagger-ui .opblock-tag { font-family: var(--font-sans); }
+  .swagger-ui .btn.authorize { border-color: var(--brass-500); color: var(--brass-700); }
+  .swagger-ui .btn.authorize svg { fill: var(--brass-600); }
+</style>
+</head>
+<body>
+<header class="apihead">
+  <div class="wordmark light"><span class="k">KBROS</span><span class="o">OMN<b>!</b></span></div>
+  <div><h1>OT Punch API</h1><span>Supabase REST · OpenAPI 3 · <a href="openapi.yaml" style="margin:0">openapi.yaml</a></span></div>
+  <a href="index.html">Back to app</a>
+</header>
+<div id="swagger"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+<script src="config.js"></script>
+<script>
+  const ui = SwaggerUIBundle({
+    url: 'openapi.yaml',
+    dom_id: '#swagger',
+    deepLinking: true,
+    persistAuthorization: true,
+    tryItOutEnabled: true,
+    docExpansion: 'list',
+    onComplete: () => ui.preauthorizeApiKey('apikey', window.STEMHUB_CONFIG.SUPABASE_ANON_KEY),
+  });
+</script>
+</body>
+</html>

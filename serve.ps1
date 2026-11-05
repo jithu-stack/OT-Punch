@@ -6,7 +6,7 @@ $l = [System.Net.HttpListener]::new()
 $l.Prefixes.Add("http://localhost:$Port/")
 $l.Start()
 Write-Host "Serving $Root at http://localhost:$Port/  (Ctrl+C to stop)"
-$types = @{ '.html'='text/html; charset=utf-8'; '.js'='text/javascript'; '.css'='text/css'; '.json'='application/json'; '.png'='image/png'; '.svg'='image/svg+xml'; '.ico'='image/x-icon' }
+$types = @{ '.html'='text/html; charset=utf-8'; '.js'='text/javascript'; '.css'='text/css'; '.json'='application/json'; '.yaml'='text/yaml'; '.png'='image/png'; '.svg'='image/svg+xml'; '.ico'='image/x-icon' }
 while ($l.IsListening) {
   $c = $l.GetContext()
   $p = [Uri]::UnescapeDataString($c.Request.Url.AbsolutePath.TrimStart('/'))

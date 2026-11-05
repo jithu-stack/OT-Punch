@@ -1,0 +1,657 @@
+openapi: 3.0.3
+info:
+  title: OT Punch API
+  version: 1.0.0
+  description: |
+    REST API for OT Punch, served by **Supabase** over the tables in `supabase/schema.sql`.
+    Every request is checked by row level security, so each login sees and changes only what its role allows.
+
+    **How to try it here**
+    1. The `apikey` header is filled in already (the public, publishable key).
+    2. Run **Auth → Sign in**, copy `access_token` from the response.
+    3. Click **Authorize**, paste the token under **bearerAuth**, then call any endpoint.
+
+    Filters use PostgREST syntax, e.g. `work_date=eq.2026-11-04`, `work_date=gte.2026-10-01`, `status=eq.approved`.
+    Times are IST; dates are `YYYY-MM-DD`.
+
+    | Role | Can |
+    |---|---|
+    | Technician | punch, read own day |
+    | HR | read everything, download reports |
+    | Supervisor | + approve / query / edit days, site allotment, delete wrong punches |
+    | Admin | + rules, sites, staff, roster |
+servers:
+  - url: https://azhqeuvusophuldpdexg.supabase.co
+    description: OT Punch Supabase project
+security:
+  - apikey: []
+    bearerAuth: []
+tags:
+  - name: Auth
+  - name: Technician
+  - name: Board
+    description: Supervisor / HR day board and approvals
+  - name: Reference
+    description: Teams, people, sites, rules
+  - name: Photos
+
+paths:
+  /auth/v1/token:
+    post:
+      tags: [Auth]
+      summary: Sign in (staff email or technician EMP code)
+      description: |
+        Staff use their email. Technicians use `<empcode>@punch.stemhub.in` (lower case) with their PIN as password.
+        Returns an access token valid for 1 hour.
+      security:
+        - apikey: []
+      parameters:
+        - name: grant_type
+          in: query
+          required: true
+          schema: { type: string, enum: [password, refresh_token], default: password }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, example: a05@stemhub.in }
+                password: { type: string, example: your-password }
+                refresh_token: { type: string, description: Only with grant_type=refresh_token }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /auth/v1/signup:
+    post:
+      tags: [Auth]
+      summary: Create account / activate technician
+      description: |
+        **Staff:** the email must already be in the `staff` table.
+        **Technician:** email `<empcode>@punch.stemhub.in`, password = new 6-digit PIN, and `data.activation_code` from the supervisor.
+        Fails with *Database error saving new user* when the EMP code or activation code is wrong.
+      security:
+        - apikey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: hr703@punch.stemhub.in }
+                password: { type: string, example: '482913' }
+                data:
+                  type: object
+                  properties:
+                    activation_code: { type: string, example: '551204' }
+      responses:
+        '200':
+          description: Account created (session returned when "Confirm email" is off)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+
+  /rest/v1/rpc/punch_state:
+    post:
+      tags: [Technician]
+      summary: Today's punches and what to punch next
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, example: {} }
+      responses:
+        '200':
+          description: Punch state for the signed-in technician
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PunchState' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /rest/v1/rpc/punch:
+    post:
+      tags: [Technician]
+      summary: Record a punch
+      description: |
+        Order: `work_in → work_out → (ot_in → ot_out | no_ot) → (travel_in → travel_out | no_travel)`.
+        Upload the selfie first (**Photos → Upload selfie**) and pass its path. `no_ot` / `no_travel` need no photo or location.
+        Errors: `Out of order. Next: …`, `Selfie and location are required`, `Not a technician login`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [p_kind, p_lat, p_lng, p_accuracy, p_photo]
+              properties:
+                p_kind: { $ref: '#/components/schemas/PunchKind' }
+                p_lat: { type: number, nullable: true, example: 12.9784 }
+                p_lng: { type: number, nullable: true, example: 77.7499 }
+                p_accuracy: { type: number, nullable: true, example: 12 }
+                p_photo: { type: string, nullable: true, example: HR703/2026-11-04/work_in-1730700000000.jpg }
+      responses:
+        '200':
+          description: New punch state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PunchState' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /rest/v1/v_day:
+    get:
+      tags: [Board]
+      summary: Calculated technician-days (board and HR report)
+      description: |
+        One row per technician-day, calculated from punches + reviews with the rules in `settings`.
+        **Daily board:** `work_date=eq.2026-11-04`.
+        **Monthly HR list:** leave `work_date` empty, set `and=(work_date.gte.2026-10-01,work_date.lte.2026-10-31)` and `status=eq.approved`.
+        Only `approved` rows belong in the HR report.
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: work_date
+          in: query
+          schema: { type: string, example: eq.2026-11-04 }
+        - name: status
+          in: query
+          schema: { type: string, example: eq.approved }
+        - name: emp_code
+          in: query
+          schema: { type: string, example: eq.HR703 }
+        - name: team_id
+          in: query
+          schema: { type: string, example: eq.2 }
+        - name: and
+          in: query
+          description: Combine filters, e.g. a date range
+          schema: { type: string, example: '(work_date.gte.2026-10-01,work_date.lte.2026-10-31)' }
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Day rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Day' }
+
+  /rest/v1/day_reviews:
+    post:
+      tags: [Board]
+      summary: Approve, reopen, query or edit a day (upsert)
+      description: |
+        Upsert on `(emp_code, work_date)` — keep the `Prefer` header.
+        | Action | Fields |
+        |---|---|
+        | Approve | `status: approved`, `approved_by`, `approved_at` |
+        | Reopen | `status: submitted` |
+        | Query | `status: query`, `note` |
+        | Confirm presence | `present: true` |
+        | Approve food | `food_approved: true` |
+        | Manual / WhatsApp entry | `source: form` or `whatsapp` + times, shift, location, OPR, TA, remark |
+      parameters:
+        - $ref: '#/components/parameters/preferUpsert'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DayReview' }
+      responses:
+        '201': { description: Saved }
+        '403': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [Board]
+      summary: Read reviews
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: work_date
+          in: query
+          schema: { type: string, example: eq.2026-11-04 }
+      responses:
+        '200':
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DayReview' }
+
+  /rest/v1/punches:
+    get:
+      tags: [Board]
+      summary: Raw punches with GPS and selfie path
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: work_date
+          in: query
+          schema: { type: string, example: eq.2026-11-04 }
+        - name: emp_code
+          in: query
+          schema: { type: string, example: eq.HR703 }
+        - $ref: '#/components/parameters/order'
+      responses:
+        '200':
+          description: Punches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Punch' }
+    delete:
+      tags: [Board]
+      summary: Delete a wrong punch (supervisor / admin)
+      parameters:
+        - name: emp_code
+          in: query
+          required: true
+          schema: { type: string, example: eq.HR703 }
+        - name: work_date
+          in: query
+          required: true
+          schema: { type: string, example: eq.2026-11-04 }
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, example: eq.no_ot }
+      responses:
+        '204': { description: Deleted }
+
+  /rest/v1/allotments:
+    get:
+      tags: [Board]
+      summary: Site allotment per team and day
+      parameters:
+        - $ref: '#/components/parameters/select'
+        - name: work_date
+          in: query
+          schema: { type: string, example: eq.2026-11-05 }
+      responses:
+        '200':
+          description: Allotments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Allotment' }
+    post:
+      tags: [Board]
+      summary: Set site allotment (upsert, supervisor / admin)
+      parameters:
+        - $ref: '#/components/parameters/preferUpsert'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Allotment' }
+      responses:
+        '201': { description: Saved }
+
+  /rest/v1/employees:
+    get:
+      tags: [Reference]
+      summary: Roster
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200':
+          description: Employees
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Employee' } }
+  /rest/v1/teams:
+    get:
+      tags: [Reference]
+      summary: Teams
+      parameters: [ { $ref: '#/components/parameters/select' }, { $ref: '#/components/parameters/order' } ]
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Team' } }
+  /rest/v1/sites:
+    get:
+      tags: [Reference]
+      summary: Sites with geofence
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200':
+          description: Sites
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Site' } }
+  /rest/v1/holidays:
+    get:
+      tags: [Reference]
+      summary: Holidays (OT ×2)
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200':
+          description: Holidays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    day: { type: string, format: date }
+                    name: { type: string }
+  /rest/v1/settings:
+    get:
+      tags: [Reference]
+      summary: OT and allowance rules (one row, id = 1)
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200':
+          description: Rules
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Settings' } }
+  /rest/v1/staff:
+    get:
+      tags: [Reference]
+      summary: Staff logins (staff only)
+      parameters: [ { $ref: '#/components/parameters/select' } ]
+      responses:
+        '200':
+          description: Staff
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    email: { type: string }
+                    name: { type: string }
+                    role: { type: string, enum: [admin, supervisor, hr] }
+                    user_id: { type: string, format: uuid, nullable: true }
+
+  /storage/v1/object/punch-photos/{path}:
+    post:
+      tags: [Photos]
+      summary: Upload selfie (technician)
+      description: The first folder must be your own EMP code, e.g. `HR703/2026-11-04/work_in-1730700000000.jpg`.
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema: { type: string, example: HR703/2026-11-04/work_in-1730700000000.jpg }
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: { type: string, format: binary }
+      responses:
+        '200': { description: Uploaded }
+  /storage/v1/object/sign/punch-photos/{path}:
+    post:
+      tags: [Photos]
+      summary: Get a temporary link to a selfie (staff)
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema: { type: string, example: HR703/2026-11-04/work_in-1730700000000.jpg }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresIn: { type: integer, example: 300 }
+      responses:
+        '200':
+          description: Signed URL (relative to /storage/v1)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signedURL: { type: string }
+
+components:
+  securitySchemes:
+    apikey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: 'Publishable key: sb_publishable_Jpzpkiq8qb0GlDtK6iE4bQ_TBHYlypE'
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: access_token from Auth → Sign in
+
+  parameters:
+    select:
+      name: select
+      in: query
+      schema: { type: string, default: '*' }
+    order:
+      name: order
+      in: query
+      schema: { type: string, example: at }
+    preferUpsert:
+      name: Prefer
+      in: header
+      required: true
+      schema: { type: string, default: resolution=merge-duplicates }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code: { type: string }
+              message: { type: string }
+              hint: { type: string, nullable: true }
+              details: { type: string, nullable: true }
+
+  schemas:
+    Session:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, example: 3600 }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string }
+
+    PunchKind:
+      type: string
+      enum: [work_in, work_out, ot_in, ot_out, no_ot, travel_in, travel_out, no_travel]
+
+    PunchState:
+      type: object
+      properties:
+        emp_code: { type: string, example: HR703 }
+        name: { type: string, example: Ravi Kumar }
+        team: { type: string, example: INSTALLATION TEAM 2 }
+        work_date: { type: string, format: date }
+        site:
+          type: object
+          nullable: true
+          description: null when the team has no allotment that day
+          properties:
+            name: { type: string, example: Prestige Lakeside }
+            shift: { type: string, enum: [S1, S2] }
+            opr_no: { type: string, example: OPR-24-1187 }
+            shift_start: { type: string, example: '07:00:00' }
+            shift_end: { type: string, example: '15:30:00' }
+            ta_type: { type: string, enum: [local, factory, outstation, night, custom] }
+            ta_amount: { type: integer, example: 100 }
+            radius: { type: integer, example: 300 }
+        punches:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { $ref: '#/components/schemas/PunchKind' }
+              at: { type: string, format: date-time }
+              dist_m: { type: integer, nullable: true }
+        next:
+          type: array
+          description: Punches allowed now; empty = day complete
+          items: { $ref: '#/components/schemas/PunchKind' }
+
+    Day:
+      type: object
+      properties:
+        emp_code: { type: string }
+        work_date: { type: string, format: date }
+        name: { type: string }
+        role: { type: string, enum: [Leader, Member, Helper] }
+        is_pg: { type: boolean }
+        team_id: { type: integer }
+        team: { type: string }
+        status: { type: string, enum: [submitted, approved, query] }
+        source: { type: string, enum: [punch, form, whatsapp] }
+        in_time: { type: string, nullable: true, example: '07:02:00' }
+        out_time: { type: string, nullable: true }
+        ot_start: { type: string, nullable: true }
+        ot_end: { type: string, nullable: true }
+        travel_time: { type: string, nullable: true }
+        shift: { type: string, enum: [S1, S2] }
+        shift_start: { type: string }
+        shift_end: { type: string }
+        location: { type: string, nullable: true }
+        opr_no: { type: string, nullable: true }
+        holiday: { type: boolean }
+        off_day: { type: boolean }
+        worked_h: { type: number, example: 8.5 }
+        ot_actual_h: { type: number, description: OT rounded down to settings.round_h }
+        mult: { type: number, description: '2 on Sunday / holiday, else 1' }
+        ot_h: { type: number, description: 'Paid OT = ot_actual_h × mult' }
+        ta_type: { type: string }
+        ta_amount: { type: integer, description: Travel allowance ₹ }
+        food_status: { type: string, enum: [auto, approved, pending, noteligible, none] }
+        presence: { type: string, enum: [VERIFIED, OUTSIDE SITE, NO PUNCH IN, NO PUNCH OUT, SITE NOT SET, MANUAL] }
+        present: { type: boolean }
+        in_dist: { type: integer, nullable: true, description: Metres from site at work in }
+        out_dist: { type: integer, nullable: true }
+        photo_in: { type: string, nullable: true }
+        photo_out: { type: string, nullable: true }
+        complete: { type: boolean }
+        late_start: { type: boolean }
+        past_shift_no_ot: { type: boolean }
+        approved_at: { type: string, format: date-time, nullable: true }
+
+    DayReview:
+      type: object
+      required: [emp_code, work_date]
+      properties:
+        emp_code: { type: string, example: HR703 }
+        work_date: { type: string, format: date, example: '2026-11-04' }
+        source: { type: string, enum: [punch, form, whatsapp] }
+        status: { type: string, enum: [submitted, approved, query], example: approved }
+        note: { type: string }
+        present: { type: boolean, nullable: true }
+        food_claim: { type: boolean }
+        food_approved: { type: boolean }
+        in_time: { type: string, example: '08:30' }
+        out_time: { type: string, example: '20:00' }
+        ot_start: { type: string }
+        ot_end: { type: string }
+        travel_time: { type: string, example: 9:30 PM to 2:30 AM }
+        break_min: { type: integer }
+        shift: { type: string, enum: [S1, S2] }
+        location: { type: string }
+        opr_no: { type: string }
+        ta_type: { type: string, enum: [local, factory, outstation, night, custom] }
+        ta_amount: { type: integer }
+        remark: { type: string }
+        approved_by: { type: string, format: uuid }
+        approved_at: { type: string, format: date-time }
+
+    Punch:
+      type: object
+      properties:
+        id: { type: integer }
+        emp_code: { type: string }
+        work_date: { type: string, format: date }
+        kind: { $ref: '#/components/schemas/PunchKind' }
+        at: { type: string, format: date-time }
+        lat: { type: number }
+        lng: { type: number }
+        accuracy_m: { type: number }
+        dist_m: { type: integer, nullable: true }
+        photo_path: { type: string, nullable: true }
+
+    Allotment:
+      type: object
+      required: [work_date, team_id]
+      properties:
+        work_date: { type: string, format: date, example: '2026-11-05' }
+        team_id: { type: integer, example: 2 }
+        site_id: { type: integer, nullable: true, example: 4 }
+        shift: { type: string, enum: [S1, S2], example: S2 }
+        opr_no: { type: string, example: 07-26-KA-015 }
+        ta_type: { type: string, enum: [local, factory, outstation, night, custom], example: local }
+        ta_amount: { type: integer, nullable: true, description: Only for ta_type custom }
+
+    Employee:
+      type: object
+      properties:
+        emp_code: { type: string }
+        name: { type: string }
+        team_id: { type: integer, nullable: true }
+        role: { type: string, enum: [Leader, Member, Helper] }
+        is_pg: { type: boolean }
+        active: { type: boolean }
+        activation_code: { type: string, nullable: true }
+        user_id: { type: string, format: uuid, nullable: true }
+
+    Team:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        is_pg: { type: boolean }
+        sort: { type: integer }
+
+    Site:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lat: { type: number, nullable: true }
+        lng: { type: number, nullable: true }
+        radius_m: { type: integer, nullable: true }
+
+    Settings:
+      type: object
+      properties:
+        s1_start: { type: string, example: '07:00' }
+        s1_end: { type: string, example: '15:30' }
+        s2_start: { type: string, example: '08:30' }
+        s2_end: { type: string, example: '17:00' }
+        grace_min: { type: integer }
+        round_h: { type: number, example: 0.5 }
+        max_ot_h: { type: number }
+        max_duty_h: { type: number }
+        off_days: { type: array, items: { type: integer } }
+        off_mult: { type: number }
+        hol_mult: { type: number }
+        pg_ot: { type: boolean }
+        food_after: { type: string, example: '22:00' }
+        food_amount: { type: integer }
+        ta_local: { type: integer, example: 100 }
+        ta_factory: { type: integer, example: 0 }
+        ta_outstation: { type: integer, example: 300 }
+        ta_night: { type: integer, example: 500 }
+        site_radius_m: { type: integer, example: 300 }

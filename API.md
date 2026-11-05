@@ -9,6 +9,7 @@ OT Punch has no separate API server. The app talks directly to **Supabase**, whi
 | Auth | `/auth/v1/...` |
 | Photos | `/storage/v1/...` (private bucket `punch-photos`) |
 | Public key | `sb_publishable_Jpzpkiq8qb0GlDtK6iE4bQ_TBHYlypE` (safe to share; never share the **secret** / `service_role` key) |
+| **Swagger UI (try it live)** | https://ot-punch.vercel.app/api-docs.html — spec: [web/openapi.yaml](web/openapi.yaml) |
 | Auto-generated docs | https://supabase.com/dashboard/project/azhqeuvusophuldpdexg/api (fills in once schema.sql has run) |
 
 Every request sends two headers:
