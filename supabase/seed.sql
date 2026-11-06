@@ -73,3 +73,8 @@ on conflict (emp_code) do nothing;
 -- First admin: replace with your email, run, then sign up in OT Desk with that email.
 insert into staff (email, name, role) values ('a05@stemhub.in', 'Admin', 'admin')
 on conflict (email) do nothing;
+
+-- Link staff who already created their account before this ran (the sign-up trigger did not exist yet).
+update staff s set user_id = u.id
+  from auth.users u
+ where lower(u.email) = lower(s.email) and s.user_id is null;
